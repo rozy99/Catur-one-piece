@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>One Piece Chess (Web)</title>
+<style>
+  body { font-family: Arial, Helvetica, sans-serif; display:flex; flex-direction:column; align-items:center; padding:20px; background:#f0f0f0; }
+  #board { border: 4px solid #333; }
+  .row { display:flex; }
+  .square { width:80px; height:80px; display:flex; align-items:center; justify-content:center; }
+  .light { background: #f5f1df; }
+  .dark { background: #8b5a2b; }
+  img.piece { width:70px; height:70px; pointer-events:none; user-select:none; }
+  #status { margin-top:10px; }
+  button { margin:5px; padding:8px 12px; }
+</style>
+</head>
+<body>
+<h2>One Piece Chess — Buka file ini di browser</h2>
+<div id="board"></div>
+<div id="status">Loading...</div>
+<div>
+  <button id="btnReset">Reset</button>
+  <button id="btnExportFEN">Export FEN</button>
+  <input id="fenOut" style="width:420px;">
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chess.js@1.0.0/chess.min.js"></script>
+<script>
+// Mapping piece symbols to asset filenames
+const pieceMap = {
+  'P':'assets/chopper.png','R':'assets/franky.png','N':'assets/sanji.png','B':'assets/robin.png','Q':'assets/luffy.png','K':'assets/jinbei.png',
+  'p':'assets/marine.png','r':'assets/akainu.png','n':'assets/kizaru.png','b':'assets/aokiji.png','q':'assets/blackbeard.png','k':'assets/kaido.png'
+};
+
+const boardEl = document.getElementById('board');
+const statusEl = document.getElementById('status');
+const CHESS = new Chess();
+
+let selected = null; // {square: 'e2', el: HTMLElement}
+const files = ['a','b','c','d','e','f','g','h'];
+
+// create board squares (top is 8)
+function buildBoard() {
+  boardEl.innerHTML = '';
+  for(let r=8; r>=1; r--){
+    const row = document.createElement('div');
+    row.className='row';
+    for(let f=0; f<8; f++){
+      const sq = files[f]+r;
+      const square = document.createElement('div');
+      square.className='square '+(((f+r)%2==0)?'light':'dark');
+      square.dataset.square = sq;
+      square.addEventListener('click', onSquareClick);
+      row.appendChild(square);
+    }
+    boardEl.appendChild(row);
+  }
+}
+
+// render pieces according to CHESS.board()
+function render() {
+  // clear images
+  document.querySelectorAll('.square').forEach(sq=>sq.innerHTML='');
+  const board = CHESS.board();
+  for(let r=0; r<8; r++){
+    for(let f=0; f<8; f++){
+      const p = board[r][f];
+      if(p){
+        const file = files[f];
+        const rank = 8 - r;
+        const sq = file+rank;
+        const squareEl = document.querySelector('[data-square=\"'+sq+'\"]');
+        const img = document.createElement('img');
+        img.src = pieceMap[p.color? p.type.toUpperCase(): p.type.toLowerCase() ] || pieceMap[p.color? p.type.toUpperCase(): p.type];
+        img.className='piece';
+        squareEl.appendChild(img);
+      }
+    }
+  }
+  statusEl.textContent = (CHESS.in_checkmate() ? 'Checkmate. ' : CHESS.in_check() ? 'Check! ' : '') + (CHESS.turn() === 'w' ? 'White to move' : 'Black to move');
+}
+
+// handle click on square
+function onSquareClick(e){
+  const sq = e.currentTarget.dataset.square;
+  const piece = CHESS.get(sq);
+  if(selected){
+    // try move selected.square -> sq
+    const from = selected.square;
+    const to = sq;
+    const move = CHESS.move({from, to, promotion: 'q'});
+    if(move){
+      selected = null;
+      render();
+    } else {
+      // if clicked own piece, reselect
+      if(piece && piece.color === CHESS.turn()){
+        selected = {square: sq};
+      } else {
+        // invalid move: deselect
+        selected = null;
+      }
+    }
+  } else {
+    if(piece && piece.color === CHESS.turn()){
+      selected = {square: sq};
+    }
+  }
+  highlight();
+  render();
+}
+
+function highlight(){
+  document.querySelectorAll('.square').forEach(sq=>sq.style.outline='');
+  if(selected){
+    const el = document.querySelector('[data-square=\"'+selected.square+'\"]');
+    if(el) el.style.outline = '4px solid yellow';
+    // show legal moves dots
+    const moves = CHESS.moves({square: selected.square, verbose:true});
+    moves.forEach(m=>{
+      const el = document.querySelector('[data-square=\"'+m.to+'\"]');
+      if(el){
+        el.style.outline = '4px solid orange';
+      }
+    });
+  }
+}
+
+document.getElementById('btnReset').addEventListener('click', ()=>{ CHESS.reset(); selected=null; render(); highlight(); });
+document.getElementById('btnExportFEN').addEventListener('click', ()=>{ document.getElementById('fenOut').value = CHESS.fen(); });
+
+buildBoard();
+render();
+</script>
+</body>
+</html>
